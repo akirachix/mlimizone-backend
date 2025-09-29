@@ -125,4 +125,8 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-ALLOWED_ADMIN_IDENTIFIRES= os.getenv("ALLOWED_ADMIN_IDENTIFIERS", "").split(",")
+ALLOWED_ADMIN_IDENTIFIERS= os.getenv("ALLOWED_ADMIN_IDENTIFIERS", "").split(",")
+
+USERNAME_SMS = os.getenv("USERNAME_SMS")
+PASSWORD = os.getenv("PASSWORD")
+SOURCE = os.getenv("SOURCE")
