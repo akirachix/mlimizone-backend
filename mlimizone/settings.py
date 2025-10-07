@@ -12,6 +12,16 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+load_dotenv()
+DARJA_CONFIG = {
+    'CONSUMER_KEY': os.getenv('DARJA_CONSUMER_KEY'),
+    'CONSUMER_SECRET': os.getenv('DARJA_CONSUMER_SECRET'),
+    'BUSINESS_SHORT_CODE': os.getenv('DARJA_BUSINESS_SHORTCODE'),
+    'PASSKEY': os.getenv('DARJA_PASSKEY'),
+    'CALLBACK_URL': os.getenv('DARJA_CALLBACK_URL'),
+} 
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +36,12 @@ SECRET_KEY = 'django-insecure-^bq_yb0fy4#dvk&4h$l%2u2!^z3fzn6-ru(0-j&&4u8eoyc39f
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '*.ngrok-free.app',
+    'e7bafdfc1829.ngrok-free.app',
+]
 
 
 # Application definition
@@ -40,6 +55,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'mlimi_zone',
+    'django_daraja'
 ]
 
 
