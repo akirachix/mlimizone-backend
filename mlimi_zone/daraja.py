@@ -12,7 +12,7 @@ class DarajaClient:
         self.consumer_secret = os.getenv('DARJA_CONSUMER_SECRET')
         self.business_shortcode = os.getenv('DARJA_SHORTCODE')
         self.passkey = os.getenv('DARJA_PASSKEY')
-        self.callback_url = "https://e7bafdfc1829.ngrok-free.app/mlimi_zone/payment/callback/"
+        self.callback_url = "https://mydomain.com/path"
         self.callback_url = self.callback_url.strip()
         sandbox_mode = os.getenv('SANDBOX_MODE', 'True').lower() == 'true'
         self.base_url = 'https://sandbox.safaricom.co.ke' if sandbox_mode else 'https://api.safaricom.co.ke'
