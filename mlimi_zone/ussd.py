@@ -135,21 +135,22 @@ class USSDView(APIView):
 @csrf_exempt
 def farmer_ussd_callback(request):
     try:
+    
         if request.method != 'POST':
             return HttpResponse("Method Not Allowed", status=405)
-
+    
         session_id = request.POST.get('sessionId', '')
         phone_number = normalize_phone(request.POST.get('phoneNumber', '').strip())
         text = request.POST.get('text', '').strip()
         inputs = text.split('*') if text else ['']
-
+    
         try:
             user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
             return HttpResponse("END Please register first.", content_type='text/plain')
 
         user_region = DISTRICT_TO_REGION.get(user.location, 'Southern Region')
-
+    
         try:
             session = USSDSession.objects.get(session_id=session_id)
             session_data = session.data or {'level': 1, 'previous_levels': []}
@@ -269,7 +270,7 @@ def farmer_ussd_callback(request):
                                 status='delivered' if sms_response.get('status_code') == 200 else 'failed'
                             )
                             response = f"CON You have listed {quantity} KG of {crop_name} at {price_per_kg} MWK/kg. Total: {total_price} MWK.\n0. Back\n00. Main menu"
-                            session_data['level'] = 2.1  # Reset to crop selection
+                            session_data['level'] = 2.1 
                             session_data['previous_levels'] = [1]
                 except (ValueError, Crop.DoesNotExist):
                     response = f"CON Invalid quantity or crop. Enter quantity in KG for {session_data.get('crop')}:\n0. Back\n00. Main menu"
@@ -578,7 +579,7 @@ def wholesaler_ussd_callback(request):
                             logger.error(f"Invalid phone number for user {user.name}: {user.phone_number}")
                             response = "CON Invalid phone number. Contact support.\n0. Back\n00. Main menu"
                             return HttpResponse(response, content_type='text/plain')
-                        amount = int(float(order.price))  # Ensure integer for M-Pesa
+                        amount = int(float(order.price))  
                         if amount <= 0:
                             logger.error(f"Invalid payment amount: {amount}")
                             response = "CON Invalid payment amount. Contact support.\n0. Back\n00. Main menu"
