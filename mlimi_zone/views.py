@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from django.http import HttpResponse 
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-
+from rest_framework.permissions import AllowAny
 from .models import ProduceListing, Cart, Order, Payment, MarketPrice, Crop, SMSLogs
 from .serializers import (
     ProduceListingSerializer, CartSerializer, OrderSerializer,
