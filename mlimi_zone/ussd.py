@@ -507,7 +507,7 @@ def wholesaler_ussd_callback(request):
                                 status='delivered' if farmer_sms.get('status_code') == 200 else 'failed'
                             )
                             response = f"CON Booking successful. Go to Pay to complete payment.\n0. Back\n00. Main menu"
-                            session_data['level'] = 2
+                            session_data['level'] = 1.1
                             session_data['previous_levels'] = [1]
                         except (ProduceListing.DoesNotExist, Cart.DoesNotExist) as e:
                             logger.error(f"Booking error: {str(e)}")
