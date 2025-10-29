@@ -7,6 +7,7 @@ from .sms import send_sms
 from .daraja import DarajaClient
 from decimal import Decimal
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ class USSDView(APIView):
            session_data = {'level': 'reg_1'}
            session = USSDSession.objects.create(session_id=session_id, phone_number=phone, data=session_data)
 
-       response = "END Invalid session state. Please start over." 
+       response = "END Invalid session state. Please start over."
 
        if session_data['level'] == 'reg_1':
            if len(parts) == 0:
@@ -93,12 +94,12 @@ class USSDView(APIView):
                    session.data = session_data
                    session.save()
        elif session_data['level'] == 'reg_2':
-           if len(parts) < 2:
+           if len(parts) <= 1:
                response = "CON Enter your full name:"
            else:
-               name = parts[1].strip()
-               if not name:
-                   response = "CON Invalid name. Enter your full name:"
+               name = parts[-1].strip()
+               if not name or not re.match(r'^[A-Za-z\s]+$', name):
+                   response = "CON Invalid name. Your name should not contain special characters or numbers. Enter your full name:"
                else:
                    session_data['name'] = name
                    session_data['level'] = 'reg_3'
@@ -106,10 +107,10 @@ class USSDView(APIView):
                    session.data = session_data
                    session.save()
        elif session_data['level'] == 'reg_3':
-           if len(parts) < 3:
+           if len(parts) < 2:
                response = "CON Enter your district (e.g., Blantyre, Lilongwe, Mzimba):"
            else:
-               district = parts[2].strip().title()
+               district = parts[-1].strip().title()
                if district not in DISTRICT_TO_REGION:
                    response = "CON Invalid district. Enter your district (e.g., Blantyre, Lilongwe, Mzimba):"
                else:
@@ -181,11 +182,11 @@ def farmer_ussd_callback(request):
            if not text:
                response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
            else:
-               current_input = inputs[-1] 
+               current_input = inputs[-1]
                if current_input == '1':
                    session_data['previous_levels'].append(1)
                    session_data['level'] = 1.1
-                   response = "CON Select crop for market prices:\n1. Maize\n2. Peas\n3. Rice\n4. Ground nuts\n0. Back\n00. Main menu"
+                   response = "CON Select crop for market prices:\n1. Maize\n2. Peas\n3. Rice\n4. Ground nuts\n0. Back"
                elif current_input == '2':
                    session_data['previous_levels'].append(1)
                    session_data['level'] = 2.1
@@ -194,21 +195,20 @@ def farmer_ussd_callback(request):
                    session_data['level'] = 1
                    session_data['previous_levels'] = []
                    request.POST._mutable = True
-                   request.POST['text'] = '' 
-                   response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce\n00. Main menu"
+                   request.POST['text'] = ''
+                   response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
                else:
-                   response = "END Invalid option."
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   response = "CON Invalid option. Please try again.\n1. See market prices\n2. List your produce"
        elif level == 1.1:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
-               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce\n00. Main menu"
+               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = ''
-               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce\n00. Main menu"
+               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
            else:
                crop_map = {'1': 'Maize', '2': 'Peas', '3': 'Rice', '4': 'Ground nuts'}
                if inputs[-1] in crop_map:
@@ -222,8 +222,7 @@ def farmer_ussd_callback(request):
                        price_list = "\n".join([f"{price.crop.crop_name}: {price.location} {price.price_per_unit} MWK" for price in prices])
                        response = f"CON Prices for {session_data['crop']}:\n{price_list}\n0. Back\n00. Main menu"
                else:
-                   response = "END Invalid crop selection"
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   response = "CON Invalid option. Please try again.\n1. Maize\n2. Peas\n3. Rice\n4. Ground nuts\n0. Back\n00. Main menu"
        elif level == 1.2:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
@@ -233,21 +232,19 @@ def farmer_ussd_callback(request):
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = ''
-               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce\n00. Main menu"
+               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
            else:
-               response = "END Invalid option"
-               USSDSession.objects.filter(session_id=session_id).delete()
-
+               response = "CON Invalid option. Please try again.\n0. Back\n00. Main menu"
        elif level == 2.1:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
-               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce\n00. Main menu"
+               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = ''
-               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce\n00. Main menu"
+               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
            else:
                crop_map = {'1': 'Maize', '2': 'Peas', '3': 'Rice', '4': 'Ground nuts'}
                selected_crop = crop_map.get(inputs[-1])
@@ -257,8 +254,7 @@ def farmer_ussd_callback(request):
                    session_data['level'] = 2.2
                    response = f"CON Enter quantity in KG for {selected_crop}:\n0. Back\n00. Main menu"
                else:
-                   response = "END Invalid crop option."
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   response = "CON Invalid option. Please try again.\n1. Maize\n2. Peas\n3. Rice\n4. Ground nuts\n0. Back\n00. Main menu"
        elif level == 2.2:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
@@ -267,8 +263,8 @@ def farmer_ussd_callback(request):
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
-               request.POST['text'] = '' 
-               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce\n00. Main menu"
+               request.POST['text'] = ''
+               response = "CON Welcome to MlimiZone Farmers\n1. See market prices\n2. List your produce"
            else:
                try:
                    quantity = Decimal(inputs[-1])
@@ -288,14 +284,14 @@ def farmer_ussd_callback(request):
                                quantity=quantity
                            )
                            total_price = quantity * price_per_kg
-                           message_body = f"Listed {quantity} KG of {crop_name} at {price_per_kg} MWK/kg. Total: {total_price} MWK"
+                           message_body = f"Hello {user.name}, you have listed {quantity} KGs of {crop_name} at {price_per_kg} MWK/kg. The total price is {total_price} MWK"
                            sms_response = send_sms(user.phone_number, message_body)
                            SMSLogs.objects.create(
                                user=user,
                                message_body=message_body,
                                status='delivered' if sms_response.get('status_code') == 200 else 'failed'
                            )
-                           response = f"CON You have listed {quantity} KG of {crop_name} at {price_per_kg} MWK/kg. Total: {total_price} MWK.\n0. Back\n00. Main menu"
+                           response = f"CON Hello farmer, You have listed {quantity} KGs of {crop_name} at {price_per_kg} MWK/kg. The total price is {total_price} MWK.\n0. Back\n00. Main menu"
                            session_data['level'] = 2.1
                            session_data['previous_levels'] = [1]
                except (ValueError, Crop.DoesNotExist):
@@ -340,7 +336,39 @@ def wholesaler_ussd_callback(request):
        except USSDSession.DoesNotExist:
            session_data = {'level': 1, 'previous_levels': []}
            session = USSDSession.objects.create(session_id=session_id, phone_number=phone_number, data=session_data)
-       response = "END Invalid session state." 
+       def get_listings_display(session_data):
+           crop_name = session_data.get('crop')
+           page = session_data.get('current_page', 0)
+           page_size = 6
+           start = page * page_size
+           end = start + page_size
+           listing_ids = session_data.get('listings', [])
+           current_ids = listing_ids[start:end]
+           listings = []
+           for cid in current_ids:
+               try:
+                   l = ProduceListing.objects.get(croplisting_id=cid)
+                   listings.append(l)
+               except ProduceListing.DoesNotExist:
+                   continue
+           listing_str = "\n".join(
+               [
+                   f"{i+1}. {l.farmer.name} - {l.quantity} KG at {MarketPrice.objects.filter(crop=l.crop, location=DISTRICT_TO_REGION.get(l.farmer.location, 'Southern Region')).first().price_per_unit} MWK"
+                   for i, l in enumerate(listings)
+               ]
+           )
+           has_prev = page > 0
+           has_next = end < len(listing_ids)
+           if listing_str:
+               listing_str += "\n"
+           if has_prev:
+               listing_str += "98. Previous\n"
+           if has_next:
+               listing_str += "99. Next\n"
+           listing_str += "0. Back\n00. Main menu"
+           return f"CON Available {crop_name} for sale:\n{listing_str}"
+       
+       response = "END Invalid session state."
        if session_data.get('level') == 1:
            if not text:
                response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
@@ -355,33 +383,35 @@ def wholesaler_ussd_callback(request):
            elif inputs[-1] == '3':
                session_data['previous_levels'].append(1)
                session_data['level'] = 5
-               orders = Order.objects.filter(wholesaler=user, status='unpaid')
+               orders = Order.objects.filter(wholesaler=user, status='unpaid', payment__isnull=True)
                if not orders:
-                   response = "END You have no unpaid orders."
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   response = "CON You have no booked crops to pay for.\n00. Main menu"
+                   session_data['level'] = 1
+                   session_data['previous_levels'] = []
+                   request.POST._mutable = True
+                   request.POST['text'] = ''
                else:
                    session_data['orders'] = [order.order_id for order in orders]
-                   order_list = "\n".join([f"{i+1}. {order.croplisting.crop.crop_name} from {order.croplisting.farmer.phone_number} - {order.croplisting.quantity} KG" for i, order in enumerate(orders)])
+                   order_list = "\n".join([f"{i+1}. {order.croplisting.crop.crop_name} from {order.croplisting.farmer.name} - {order.croplisting.quantity} KG" for i, order in enumerate(orders)])
                    response = f"CON Your unpaid orders:\n{order_list}\n0. Back\n00. Main menu"
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
-               request.POST['text'] = '' 
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               request.POST['text'] = ''
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            else:
-               response = "END Invalid option"
-               USSDSession.objects.filter(session_id=session_id).delete()
+               response = "CON Invalid option. Please try again.\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
        elif session_data.get('level') == 1.1:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = ''
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            else:
                crop_map = {'1': 'Maize', '2': 'Peas', '3': 'Rice', '4': 'Ground nuts'}
                if inputs[-1] in crop_map:
@@ -395,8 +425,7 @@ def wholesaler_ussd_callback(request):
                        price_list = "\n".join([f"{price.crop.crop_name}: {price.location} {price.price_per_unit} MWK" for price in prices])
                        response = f"CON Prices for {session_data['crop']}:\n{price_list}\n0. Back\n00. Main menu"
                else:
-                   response = "END Invalid crop selection"
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   response = "CON Invalid option. Please try again.\n1. Maize\n2. Peas\n3. Rice\n4. Ground nuts\n0. Back\n00. Main menu"
        elif session_data.get('level') == 1.2:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
@@ -405,43 +434,39 @@ def wholesaler_ussd_callback(request):
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
-               request.POST['text'] = '' 
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               request.POST['text'] = ''
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            else:
-               response = "END Invalid option"
-               USSDSession.objects.filter(session_id=session_id).delete()
+               response = "CON Invalid option. Please try again.\n0. Back\n00. Main menu"
        elif session_data.get('level') == 2:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = ''
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            else:
                crop_map = {'1': 'Maize', '2': 'Peas', '3': 'Rice', '4': 'Ground nuts'}
                if inputs[-1] in crop_map:
                    session_data['crop'] = crop_map[inputs[-1]]
                    session_data['previous_levels'].append(2)
-                   session_data['level'] = 3
                    try:
                        crop = Crop.objects.get(crop_name=session_data['crop'])
                        listings = ProduceListing.objects.filter(crop=crop).exclude(order__isnull=False)
                        if not listings:
-                           response = f"END No available {session_data['crop']} listings."
-                           USSDSession.objects.filter(session_id=session_id).delete()
+                           response = f"CON No available {session_data['crop']} listings.\n0. Back\n00. Main menu"
                        else:
                            session_data['listings'] = [listing.croplisting_id for listing in listings]
-                           listing_str = "\n".join([f"{i+1}. {listing.farmer.phone_number} - {listing.quantity} KG at {MarketPrice.objects.filter(crop=crop, location=DISTRICT_TO_REGION.get(listing.farmer.location, 'Southern Region')).first().price_per_unit} MWK" for i, listing in enumerate(listings)])
-                           response = f"CON Available {session_data['crop']} for sale:\n{listing_str}\n0. Back\n00. Main menu"
+                           session_data['current_page'] = 0
+                           response = get_listings_display(session_data)
+                           session_data['level'] = 3
                    except Crop.DoesNotExist:
-                       response = "END Invalid crop."
-                       USSDSession.objects.filter(session_id=session_id).delete()
+                       response = "CON Invalid crop.\n0. Back\n00. Main menu"
                else:
-                   response = "END Invalid crop selection"
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   response = "CON Invalid option. Please try again.\n1. Maize\n2. Peas\n3. Rice\n4. Ground nuts\n0. Back\n00. Main menu"
        elif session_data.get('level') == 3:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
@@ -451,51 +476,53 @@ def wholesaler_ussd_callback(request):
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = ''
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
+           elif inputs[-1] == '99':
+               current_page = session_data.get('current_page', 0)
+               total_listings = len(session_data.get('listings', []))
+               if (current_page + 1) * 6 < total_listings:
+                   session_data['current_page'] = current_page + 1
+               response = get_listings_display(session_data)
+           elif inputs[-1] == '98':
+               current_page = session_data.get('current_page', 0)
+               if current_page > 0:
+                   session_data['current_page'] = current_page - 1
+               response = get_listings_display(session_data)
            else:
                try:
                    selection = int(inputs[-1]) - 1
-                   if 0 <= selection < len(session_data.get('listings', [])):
-                       listing_id = session_data['listings'][selection]
-                       listing = ProduceListing.objects.get(croplisting_id=listing_id)
-                       session_data['selected_listing'] = listing_id
-                       session_data['previous_levels'].append(3)
-                       session_data['level'] = 4
-                       price_per_kg = MarketPrice.objects.filter(crop=listing.crop, location=DISTRICT_TO_REGION.get(listing.farmer.location, 'Southern Region')).first()
-                       if not price_per_kg:
-                           logger.error(f"No price found for crop {listing.crop.crop_name} in {DISTRICT_TO_REGION.get(listing.farmer.location, 'Southern Region')}")
-                           response = "CON No market price available. Contact support.\n0. Back\n00. Main menu"
-                       else:
-                           price_per_kg = price_per_kg.price_per_unit
-                           response = f"CON Confirm booking for {listing.crop.crop_name} from {listing.farmer.phone_number} - {listing.quantity} KG at {price_per_kg} MWK?\n1. Yes\n2. No\n0. Back\n00. Main menu"
+                   if selection < 0:
+                       raise ValueError("Negative selection")
+                   current_page = session_data.get('current_page', 0)
+                   page_size = 6
+                   start = current_page * page_size
+                   listing_ids = session_data.get('listings', [])
+                   if start + selection >= len(listing_ids):
+                       raise ValueError("Out of range")
+                   listing_id = listing_ids[start + selection]
+                   listing = ProduceListing.objects.get(croplisting_id=listing_id)
+                   session_data['selected_listing'] = listing_id
+                   session_data['previous_levels'].append(3)
+                   session_data['level'] = 4
+                   price_per_kg_obj = MarketPrice.objects.filter(crop=listing.crop, location=DISTRICT_TO_REGION.get(listing.farmer.location, 'Southern Region')).first()
+                   if not price_per_kg_obj:
+                       response = "CON No market price available. Contact support.\n0. Back\n00. Main menu"
                    else:
-                       response = "END Invalid selection"
-                       USSDSession.objects.filter(session_id=session_id).delete()
-               except (ValueError, ProduceListing.DoesNotExist):
-                   response = "END Invalid input"
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                       price_per_kg = price_per_kg_obj.price_per_unit
+                       response = f"CON Confirm booking for {listing.crop.crop_name} from {listing.farmer.name} - {listing.quantity} KG at {price_per_kg} MWK?\n1. Yes\n2. No\n0. Back\n00. Main menu"
+               except (ValueError, ProduceListing.DoesNotExist) as e:
+                   logger.error(f"Selection error: {str(e)}")
+                   response = get_listings_display(session_data)
        elif session_data.get('level') == 4:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
-               try:
-                   crop = Crop.objects.get(crop_name=session_data.get('crop', 'Maize'))
-                   listings = ProduceListing.objects.filter(crop=crop).exclude(order__isnull=False)
-                   if not listings:
-                       response = f"END No available {session_data.get('crop', 'Maize')} listings."
-                       USSDSession.objects.filter(session_id=session_id).delete()
-                   else:
-                       session_data['listings'] = [listing.croplisting_id for listing in listings]
-                       listing_str = "\n".join([f"{i+1}. {listing.farmer.phone_number} - {listing.quantity} KG at {MarketPrice.objects.filter(crop=crop, location=DISTRICT_TO_REGION.get(listing.farmer.location, 'Southern Region')).first().price_per_unit} MWK" for i, listing in enumerate(listings)])
-                       response = f"CON Available {session_data['crop']} for sale:\n{listing_str}\n0. Back\n00. Main menu"
-               except Crop.DoesNotExist:
-                   response = "END Invalid crop."
-                   USSDSession.objects.filter(session_id=session_id).delete()
+               response = get_listings_display(session_data)
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = '' 
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            else:
                if inputs[-1] == '1':
                    listing_id = session_data.get('selected_listing')
@@ -516,14 +543,14 @@ def wholesaler_ussd_callback(request):
                                    price=listing.quantity * price_per_kg,
                                    status='unpaid'
                                )
-                               message_body = f"Booked {listing.quantity} KG of {listing.crop.crop_name} from {listing.farmer.phone_number} for {order.price} MWK"
+                               message_body = f"Hello {user.name}, You have successfully booked {listing.quantity} KG of {listing.crop.crop_name} from {listing.farmer.name} for {order.price} MWK. This is contact info {listing.farmer.phone_number}"
                                sms_response = send_sms(user.phone_number, message_body)
                                SMSLogs.objects.create(
                                    user=user,
                                    message_body=message_body,
                                    status='delivered' if sms_response.get('status_code') == 200 else 'failed'
                                )
-                               farmer_message = f"Hello, your {listing.quantity} KG of {listing.crop.crop_name} has been booked by {user.name}. Expect payment of {order.price} MWK soon."
+                               farmer_message = f"Hello {listing.farmer.name}, your {listing.quantity} KG of {listing.crop.crop_name} has been booked by {user.name}. Expect payment of {order.price} MWK soon."
                                farmer_sms = send_sms(listing.farmer.phone_number, farmer_message)
                                SMSLogs.objects.create(
                                    user=listing.farmer,
@@ -531,7 +558,7 @@ def wholesaler_ussd_callback(request):
                                    status='delivered' if farmer_sms.get('status_code') == 200 else 'failed'
                                )
                                response = f"CON Booking successful. Go to Pay to complete payment.\n0. Back\n00. Main menu"
-                               session_data['level'] = 1.1
+                               session_data['level'] = 2
                                session_data['previous_levels'] = [1]
                        except (ProduceListing.DoesNotExist, Cart.DoesNotExist) as e:
                            logger.error(f"Booking error: {str(e)}")
@@ -546,46 +573,53 @@ def wholesaler_ussd_callback(request):
        elif session_data.get('level') == 5:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = '' 
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            else:
                try:
                    selection = int(inputs[-1]) - 1
+                   orders = Order.objects.filter(wholesaler=user, status='unpaid').exclude(payment__payment_status='completed')
+                   session_data['orders'] = [order.order_id for order in orders]
                    if 0 <= selection < len(session_data.get('orders', [])):
                        order_id = session_data['orders'][selection]
                        order = Order.objects.get(order_id=order_id)
                        session_data['selected_order'] = order_id
                        session_data['previous_levels'].append(5)
                        session_data['level'] = 6
-                       response = f"CON Confirm payment for {order.croplisting.crop.crop_name} from {order.croplisting.farmer.phone_number} - {order.croplisting.quantity} KG ({order.price} MWK)?\n1. Yes\n2. No\n0. Back\n00. Main menu"
+                       response = f"CON Confirm payment for {order.croplisting.crop.crop_name} from {order.croplisting.farmer.name} - {order.croplisting.quantity} KG ({order.price} MWK)?\n1. Yes\n2. No\n0. Back\n00. Main menu"
                    else:
-                       response = "END Invalid selection"
-                       USSDSession.objects.filter(session_id=session_id).delete()
+                       order_list = "\n".join([f"{i+1}. {order.croplisting.crop.crop_name} from {order.croplisting.farmer.name} - {order.croplisting.quantity} KG" for i, order in enumerate(orders)])
+                       response = f"CON Invalid selection. Please try again.\nYour unpaid orders:\n{order_list}\n0. Back\n00. Main menu"
                except (ValueError, Order.DoesNotExist):
-                   response = "END Invalid input"
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   orders = Order.objects.filter(wholesaler=user, status='unpaid').exclude(payment__payment_status='completed')
+                   session_data['orders'] = [order.order_id for order in orders]
+                   order_list = "\n".join([f"{i+1}. {order.croplisting.crop.crop_name} from {order.croplisting.farmer.name} - {order.croplisting.quantity} KG" for i, order in enumerate(orders)])
+                   response = f"CON Invalid input. Please try again.\nYour unpaid orders:\n{order_list}\n0. Back\n00. Main menu"
        elif session_data.get('level') == 6:
            if inputs[-1] == '0':
                session_data['level'] = session_data['previous_levels'].pop() if session_data['previous_levels'] else 1
-               orders = Order.objects.filter(wholesaler=user, status='unpaid')
+               orders = Order.objects.filter(wholesaler=user, status='unpaid').exclude(payment__payment_status='completed')
                if not orders:
-                   response = "END You have no unpaid orders."
-                   USSDSession.objects.filter(session_id=session_id).delete()
+                   response = "CON You have no booked crops to pay for.\n00. Main menu"
+                   session_data['level'] = 1
+                   session_data['previous_levels'] = []
+                   request.POST._mutable = True
+                   request.POST['text'] = ''
                else:
                    session_data['orders'] = [order.order_id for order in orders]
-                   order_list = "\n".join([f"{i+1}. {order.croplisting.crop.crop_name} from {order.croplisting.farmer.phone_number} - {order.croplisting.quantity} KG" for i, order in enumerate(orders)])
+                   order_list = "\n".join([f"{i+1}. {order.croplisting.crop.crop_name} from {order.croplisting.farmer.name} - {order.croplisting.quantity} KG" for i, order in enumerate(orders)])
                    response = f"CON Your unpaid orders:\n{order_list}\n0. Back\n00. Main menu"
            elif inputs[-1] == '00':
                session_data['level'] = 1
                session_data['previous_levels'] = []
                request.POST._mutable = True
                request.POST['text'] = '' 
-               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders\n00. Main menu"
+               response = "CON Welcome to MlimiZone Wholesaler\n1. See market prices\n2. Book produce\n3. Pay for orders"
            else:
                if inputs[-1] == '1':
                    order_id = session_data.get('selected_order')
@@ -596,56 +630,67 @@ def wholesaler_ussd_callback(request):
                    else:
                        try:
                            order = Order.objects.get(order_id=order_id)
-                           if not order.price or order.price <= 0:
-                               logger.error(f"Invalid order price for order {order_id}: {order.price}")
-                               response = "CON Invalid order price. Contact support.\n0. Back\n00. Main menu"
-                           else:
-                               phone_number = normalize_phone(user.phone_number)
-                               if not phone_number:
-                                   logger.error(f"Invalid phone number for user {user.name}: {user.phone_number}")
-                                   response = "CON Invalid phone number. Contact support.\n0. Back\n00. Main menu"
+                           existing_payment = Payment.objects.filter(order=order).first()
+                           if existing_payment and existing_payment.payment_status == 'completed':
+                               if existing_payment.payment_status == 'pending':
+                                   response = f"CON This order for {order.croplisting.crop.crop_name} ({order.price} MWK) is already PAID.\n0. Back\n00. Main menu"
+                               elif existing_payment.payment_status == 'completed':
+                                   response = f"CON This order ({order.croplisting.crop.crop_name}, {order.price} MWK) has already been paid.\n0. Back\n00. Main menu"
                                else:
-                                   amount = int(float(order.price))
-                                   if amount <= 0:
-                                       logger.error(f"Invalid payment amount: {amount}")
-                                       response = "CON Invalid payment amount. Contact support.\n0. Back\n00. Main menu"
+                                   response = f"CON Payment status for this order is {existing_payment.payment_status}. Contact support.\n0. Back\n00. Main menu"
+                               session.data = session_data
+                               session.save()
+                           else:
+                               if not order.price or order.price <= 0:
+                                   logger.error(f"Invalid order price for order {order_id}: {order.price}")
+                                   response = "CON Invalid order price. Contact support.\n0. Back\n00. Main menu"
+                               else:
+                                   phone_number = normalize_phone(user.phone_number)
+                                   if not phone_number:
+                                       logger.error(f"Invalid phone number for user {user.name}: {user.phone_number}")
+                                       response = "CON Invalid phone number. Contact support.\n0. Back\n00. Main menu"
                                    else:
-                                       daraja = DarajaClient()
-                                       stk_response = daraja.stk_push(
-                                           phone_number=phone_number,
-                                           amount=amount,
-                                           account_reference=f"Order_{order.order_id}",
-                                           transaction_desc=f"Payment for {order.croplisting.crop.crop_name}"
-                                       )
-                                       logger.info(f"STK Push request: phone={phone_number}, amount={amount}")
-                                       logger.info(f"STK Push response: {stk_response}")
-                                       if 'ResponseCode' in stk_response and stk_response['ResponseCode'] == '0':
-                                           Payment.objects.create(
-                                               order=order,
-                                               amount=order.price,
-                                               payment_status='pending',
-                                               transaction_ref=stk_response['CheckoutRequestID']
-                                           )
-                                           message_body = f"M-Pesa payment of {order.price} MWK for order {order.order_id} initiated. Check your phone."
-                                           sms_response = send_sms(user.phone_number, message_body)
-                                           SMSLogs.objects.create(
-                                               user=user,
-                                               message_body=message_body,
-                                               status='delivered' if sms_response.get('status_code') == 200 else 'failed'
-                                           )
-                                           farmer_message = f"Payment of {order.price} MWK for {order.croplisting.quantity} KG of {order.croplisting.crop.crop_name} initiated by {user.name}."
-                                           farmer_sms = send_sms(order.croplisting.farmer.phone_number, farmer_message)
-                                           SMSLogs.objects.create(
-                                               user=order.croplisting.farmer,
-                                               message_body=farmer_message,
-                                               status='delivered' if farmer_sms.get('status_code') == 200 else 'failed'
-                                           )
-                                           response = "END M-Pesa payment initiated."
-                                           USSDSession.objects.filter(session_id=session_id).delete()
+                                       amount = int(float(order.price))
+                                       if amount <= 0:
+                                           logger.error(f"Invalid payment amount: {amount}")
+                                           response = "CON Invalid payment amount. Contact support.\n0. Back\n00. Main menu"
                                        else:
-                                           error_message = stk_response.get('error', 'Unknown error')
-                                           logger.error(f"STK Push failed: {error_message}")
-                                           response = f"CON Payment failed: {error_message}. Try again.\n0. Back\n00. Main menu"
+                                           daraja = DarajaClient()
+                                           stk_response = daraja.stk_push(
+                                               phone_number=phone_number,
+                                               amount=amount,
+                                               account_reference=f"Order_{order.order_id}",
+                                               transaction_desc=f"Payment for {order.croplisting.crop.crop_name}"
+                                           )
+                                           logger.info(f"STK Push request: phone={phone_number}, amount={amount}")
+                                           logger.info(f"STK Push response: {stk_response}")
+                                           if 'ResponseCode' in stk_response and stk_response['ResponseCode'] == '0':
+                                               Payment.objects.create(
+                                                   order=order,
+                                                   amount=order.price,
+                                                   payment_status='pending',
+                                                   transaction_ref=stk_response['CheckoutRequestID']
+                                               )
+                                               message_body = f"Hello {user.name} M-Pesa payment of {order.price} MWK for order {order.order_id} initiated. Check your phone."
+                                               sms_response = send_sms(user.phone_number, message_body)
+                                               SMSLogs.objects.create(
+                                                   user=user,
+                                                   message_body=message_body,
+                                                   status='delivered' if sms_response.get('status_code') == 200 else 'failed'
+                                               )
+                                               farmer_message = f"Hello {order.croplisting.farmer.name}, payment of {order.price} MWK for {order.croplisting.quantity} KGs of {order.croplisting.crop.crop_name} initiated by {user.name}."
+                                               farmer_sms = send_sms(order.croplisting.farmer.phone_number, farmer_message)
+                                               SMSLogs.objects.create(
+                                                   user=order.croplisting.farmer,
+                                                   message_body=farmer_message,
+                                                   status='delivered' if farmer_sms.get('status_code') == 200 else 'failed'
+                                               )
+                                               response = "END Your request is being processed. You will receive a request to enter MPESA PIN shortly"
+                                               USSDSession.objects.filter(session_id=session_id).delete()
+                                           else:
+                                               error_message = stk_response.get('error', 'Unknown error')
+                                               logger.error(f"STK Push failed: {error_message}")
+                                               response = f"CON Payment failed: {error_message}. Try again.\n0. Back\n00. Main menu"
                        except Exception as payment_error:
                            logger.error(f"Payment error: {str(payment_error)}")
                            response = f"CON Something went wrong while processing payment: {str(payment_error)}. Try again.\n0. Back\n00. Main menu"
